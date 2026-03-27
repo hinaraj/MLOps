@@ -39,10 +39,11 @@ api = HfApi()
 # ==============================
 # Load Data from Hugging Face Dataset
 # ==============================
-Xtrain = pd.read_csv("hf://datasets/hinaabcd/visit_with_us/Xtrain.csv")
-Xtest  = pd.read_csv("hf://datasets/hinaabcd/visit_with_us/Xtest.csv")
-ytrain = pd.read_csv("hf://datasets/hinaabcd/visit_with_us/ytrain.csv")
-ytest  = pd.read_csv("hf://datasets/hinaabcd/visit_with_us/ytest.csv")
+# FIXED: Changed repo_id to match the dataset uploaded by data_register.py and prep.py
+Xtrain = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/Xtrain.csv")
+Xtest  = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/Xtest.csv")
+ytrain = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/ytrain.csv")
+ytest  = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/ytest.csv")
 
 # Convert to Series
 ytrain = ytrain.squeeze()
@@ -145,7 +146,7 @@ with mlflow.start_run():
     # ==============================
     # Best Model
     # ==============================
-    best_model = grid_search.best_estimator_
+best_model = grid_search.best_estimator_
 
     mlflow.log_params(grid_search.best_params_)
     mlflow.log_metric("best_cv_score", grid_search.best_score_)
