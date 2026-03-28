@@ -18,7 +18,7 @@ api = HfApi()
 # ==============================
 # Load Dataset from Hugging Face
 # ==============================
-DATASET_PATH = "hf://datasets/hinaabcd/tourism-package-dataset/wellness_tourism.csv"
+DATASET_PATH = "hf://datasets/hinaabcd/tourism-package-dataset/tourism.csv"
 
 df = pd.read_csv(DATASET_PATH)
 print(" Dataset loaded successfully")
