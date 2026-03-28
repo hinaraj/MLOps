@@ -4,77 +4,59 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
 
-  register-dataset:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install Dependencies
-        run: |
-          pip install pandas datasets huggingface_hub
-
-      - name: Upload Dataset
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python mlops/model_building/prep.py
-
-
   data-prep:
-    needs: register-dataset
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
       - name: Install Dependencies
-        run: |
-          pip install pandas scikit-learn huggingface_hub
+        run: pip install -r tourism_project/requirements.txt
 
       - name: Run Data Prep
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python mlops/model_building/prep.py
+        run: python tourism_project/model_building/prep.py
 
+      - name: Upload processed data
+        uses: actions/upload-artifact@v3
+        with:
+          name: processed-data
+          path: tourism_project/data/
 
   model-training:
     needs: data-prep
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
       - name: Install Dependencies
-        run: |
-          pip install pandas scikit-learn xgboost mlflow joblib huggingface_hub
+        run: pip install -r tourism_project/requirements.txt
 
-      - name: Start MLflow
-        run: |
-          nohup mlflow ui --host 0.0.0.0 --port 5000 &
-          sleep 10
+      - name: Download processed data
+        uses: actions/download-artifact@v3
+        with:
+          name: processed-data
+          path: tourism_project/data/
 
       - name: Train Model
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python mlops/model_building/train.py
-
+        run: python tourism_project/model_building/train.py
 
   deploy-hosting:
     needs: model-training
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
       - name: Install Dependencies
-        run: |
-          pip install huggingface_hub
+        run: pip install -r tourism_project/requirements.txt
 
-      - name: Deploy to Hugging Face Space
+      - name: Deploy to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python mlops/hosting/hosting.py
+        run: python tourism_project/hosting/hosting.py
