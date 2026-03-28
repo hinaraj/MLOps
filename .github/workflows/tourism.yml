@@ -20,7 +20,7 @@ jobs:
         run: python tourism_project/model_building/prep.py
 
       - name: Upload processed data
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4   # ✅ FIXED
         with:
           name: processed-data
           path: tourism_project/data/
@@ -36,7 +36,7 @@ jobs:
         run: pip install -r tourism_project/requirements.txt
 
       - name: Download processed data
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4   # ✅ FIXED
         with:
           name: processed-data
           path: tourism_project/data/
