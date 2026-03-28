@@ -1,4 +1,3 @@
-
 # ==============================
 # Imports
 # ==============================
@@ -26,7 +25,7 @@ from huggingface_hub import HfApi, create_repo
 from huggingface_hub.utils import RepositoryNotFoundError
 
 # ==============================
-# MLflow Setup (FIXED)
+# MLflow Setup
 # ==============================
 mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("Tourism_Package_Prediction")
@@ -34,22 +33,22 @@ mlflow.set_experiment("Tourism_Package_Prediction")
 # ==============================
 # Hugging Face API
 # ==============================
-api = HfApi()
+HF_TOKEN = os.getenv("HF_TOKEN")
+api = HfApi(token=HF_TOKEN)
 
 # ==============================
-# Load Data from Hugging Face Dataset
+# Load Data (LOCAL - FIXED)
 # ==============================
-# FIXED: Changed repo_id to match the dataset uploaded by data_register.py and prep.py
-Xtrain = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/Xtrain.csv")
-Xtest  = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/Xtest.csv")
-ytrain = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/ytrain.csv")
-ytest  = pd.read_csv("hf://datasets/hinaabcd/tourism-package-dataset/ytest.csv")
+Xtrain = pd.read_csv("tourism_project/data/Xtrain.csv")
+Xtest  = pd.read_csv("tourism_project/data/Xtest.csv")
+ytrain = pd.read_csv("tourism_project/data/ytrain.csv")
+ytest  = pd.read_csv("tourism_project/data/ytest.csv")
 
 # Convert to Series
 ytrain = ytrain.squeeze()
 ytest = ytest.squeeze()
 
-print(" Data loaded from Hugging Face")
+print("✅ Data loaded successfully")
 
 # ==============================
 # Feature Lists
@@ -121,7 +120,7 @@ model_pipeline = make_pipeline(preprocessor, xgb_model)
 # ==============================
 with mlflow.start_run():
 
-    # Train
+    # Train model
     grid_search = GridSearchCV(
         model_pipeline,
         param_grid,
@@ -146,7 +145,7 @@ with mlflow.start_run():
     # ==============================
     # Best Model
     # ==============================
-best_model = grid_search.best_estimator_
+    best_model = grid_search.best_estimator_
 
     mlflow.log_params(grid_search.best_params_)
     mlflow.log_metric("best_cv_score", grid_search.best_score_)
