@@ -1,176 +1,108 @@
-# ==============================
-# Imports
-# ==============================
 import pandas as pd
 import os
 
-# preprocessing
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import make_column_transformer
 from sklearn.pipeline import make_pipeline
 
-# modeling
 import xgboost as xgb
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import classification_report
 
-# tracking
 import mlflow
-
-# serialization
 import joblib
 
-# Hugging Face
 from huggingface_hub import HfApi, create_repo
 from huggingface_hub.utils import RepositoryNotFoundError
 
 # ==============================
-# MLflow Setup
+# MLflow
 # ==============================
 mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("Tourism_Package_Prediction")
 
 # ==============================
-# Hugging Face API
-# ==============================
-HF_TOKEN = os.getenv("HF_TOKEN")
-api = HfApi(token=HF_TOKEN)
-
-# ==============================
-# Load Data (LOCAL - FIXED)
+# Load Data (LOCAL FILES)
 # ==============================
 Xtrain = pd.read_csv("tourism_project/data/Xtrain.csv")
 Xtest  = pd.read_csv("tourism_project/data/Xtest.csv")
-ytrain = pd.read_csv("tourism_project/data/ytrain.csv")
-ytest  = pd.read_csv("tourism_project/data/ytest.csv")
+ytrain = pd.read_csv("tourism_project/data/ytrain.csv").squeeze()
+ytest  = pd.read_csv("tourism_project/data/ytest.csv").squeeze()
 
-# Convert to Series
-ytrain = ytrain.squeeze()
-ytest = ytest.squeeze()
-
-print("✅ Data loaded successfully")
+print(" Data loaded for training")
 
 # ==============================
-# Feature Lists
+# Features
 # ==============================
 numeric_features = [
-    "Age",
-    "CityTier",
-    "NumberOfPersonVisiting",
-    "PreferredPropertyStar",
-    "NumberOfTrips",
-    "Passport",
-    "OwnCar",
-    "NumberOfChildrenVisiting",
-    "MonthlyIncome",
-    "PitchSatisfactionScore",
-    "NumberOfFollowups",
-    "DurationOfPitch"
+    "Age","CityTier","NumberOfPersonVisiting","PreferredPropertyStar",
+    "NumberOfTrips","Passport","OwnCar","NumberOfChildrenVisiting",
+    "MonthlyIncome","PitchSatisfactionScore","NumberOfFollowups","DurationOfPitch"
 ]
 
 categorical_features = [
-    "TypeofContact",
-    "Occupation",
-    "Gender",
-    "MaritalStatus",
-    "Designation",
-    "ProductPitched"
+    "TypeofContact","Occupation","Gender",
+    "MaritalStatus","Designation","ProductPitched"
 ]
 
 # ==============================
-# Handle Class Imbalance
+# Class imbalance
 # ==============================
 class_weight = ytrain.value_counts()[0] / ytrain.value_counts()[1]
 
 # ==============================
-# Preprocessing
+# Pipeline
 # ==============================
 preprocessor = make_column_transformer(
     (StandardScaler(), numeric_features),
     (OneHotEncoder(handle_unknown='ignore'), categorical_features)
 )
 
-# ==============================
-# Model
-# ==============================
-xgb_model = xgb.XGBClassifier(
+model = xgb.XGBClassifier(
     scale_pos_weight=class_weight,
     random_state=42,
     eval_metric="logloss"
 )
 
+pipeline = make_pipeline(preprocessor, model)
+
 # ==============================
-# Hyperparameter Grid
+# Grid Search
 # ==============================
 param_grid = {
     'xgbclassifier__n_estimators': [50, 100],
     'xgbclassifier__max_depth': [3, 5],
-    'xgbclassifier__learning_rate': [0.01, 0.1],
-    'xgbclassifier__colsample_bytree': [0.6],
-    'xgbclassifier__reg_lambda': [0.5]
+    'xgbclassifier__learning_rate': [0.01, 0.1]
 }
 
 # ==============================
-# Pipeline
-# ==============================
-model_pipeline = make_pipeline(preprocessor, xgb_model)
-
-# ==============================
-# MLflow Run
+# Training
 # ==============================
 with mlflow.start_run():
 
-    # Train model
-    grid_search = GridSearchCV(
-        model_pipeline,
+    grid = GridSearchCV(
+        pipeline,
         param_grid,
         cv=5,
         n_jobs=-1,
         scoring="accuracy"
     )
 
-    grid_search.fit(Xtrain, ytrain)
+    grid.fit(Xtrain, ytrain)
 
-    # ==============================
-    # Log all runs
-    # ==============================
-    results = grid_search.cv_results_
+    best_model = grid.best_estimator_
 
-    for i in range(len(results['params'])):
-        with mlflow.start_run(nested=True):
-            mlflow.log_params(results['params'][i])
-            mlflow.log_metric("mean_test_score", results['mean_test_score'][i])
-            mlflow.log_metric("std_test_score", results['std_test_score'][i])
-
-    # ==============================
-    # Best Model
-    # ==============================
-    best_model = grid_search.best_estimator_
-
-    mlflow.log_params(grid_search.best_params_)
-    mlflow.log_metric("best_cv_score", grid_search.best_score_)
+    mlflow.log_params(grid.best_params_)
+    mlflow.log_metric("best_score", grid.best_score_)
 
     # ==============================
     # Evaluation
     # ==============================
-    threshold = 0.45
+    y_pred = best_model.predict(Xtest)
 
-    y_pred_train = (best_model.predict_proba(Xtrain)[:, 1] >= threshold).astype(int)
-    y_pred_test = (best_model.predict_proba(Xtest)[:, 1] >= threshold).astype(int)
+    report = classification_report(ytest, y_pred, output_dict=True)
 
-    train_report = classification_report(ytrain, y_pred_train, output_dict=True)
-    test_report = classification_report(ytest, y_pred_test, output_dict=True)
-
-    mlflow.log_metrics({
-        "train_accuracy": train_report['accuracy'],
-        "train_precision": train_report['1']['precision'],
-        "train_recall": train_report['1']['recall'],
-        "train_f1": train_report['1']['f1-score'],
-        "test_accuracy": test_report['accuracy'],
-        "test_precision": test_report['1']['precision'],
-        "test_recall": test_report['1']['recall'],
-        "test_f1": test_report['1']['f1-score']
-    })
+    mlflow.log_metric("accuracy", report["accuracy"])
 
     # ==============================
     # Save Model
@@ -182,26 +114,24 @@ with mlflow.start_run():
 
     mlflow.log_artifact(model_path)
 
-    print(" Model saved and logged")
+    print(" Model trained & saved")
 
 # ==============================
-# Upload Model to Hugging Face
+# Upload to Hugging Face
 # ==============================
+api = HfApi()
 repo_id = "hinaabcd/tourism-package-model"
-repo_type = "model"
 
 try:
-    api.repo_info(repo_id=repo_id, repo_type=repo_type)
-    print(f" Repo exists: {repo_id}")
+    api.repo_info(repo_id=repo_id, repo_type="model")
 except RepositoryNotFoundError:
-    print(" Creating Hugging Face model repo...")
-    create_repo(repo_id=repo_id, repo_type=repo_type, private=False)
+    create_repo(repo_id=repo_id, repo_type="model", private=False)
 
 api.upload_file(
     path_or_fileobj=model_path,
     path_in_repo="tourism_model.joblib",
     repo_id=repo_id,
-    repo_type=repo_type,
+    repo_type="model",
 )
 
 print(" Model uploaded to Hugging Face")
